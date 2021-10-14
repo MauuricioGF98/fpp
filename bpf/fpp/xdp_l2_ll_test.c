@@ -33,16 +33,33 @@ int profiling_protocol(struct xdp_md *ctx) {
 	
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
+
+//	if (bpf_xdp_adjust_tail(ctx, (int)(PRO_MAN_SIZE + NODE_MAN_SIZE * NODES_TO_STORE)))
+//			return XDP_PASS;
+
+	//Reevaluate the data_end, data pointers and do bound checks again after the adjustament
+//	data = (void *)(long)ctx->data;
+//	data_end = (void *)(long)ctx->data_end;
+
 	struct ethhdr *eth = data;
 
 	if (eth + 1 > data_end)
 		return XDP_PASS;
-	
-	__u8 node_id_aux[6];
-	/*The node id is extracted and stored in the node_id_aux. Allthough it wont be stored later*/
-	__builtin_memcpy(&node_id_aux, eth->h_dest, sizeof(node_id_aux));
 
-	struct ptp_data *ptp = (void*) eth + sizeof(*eth);
+/*
+	if (bpf_xdp_adjust_tail(ctx, (int)(PRO_MAN_SIZE + NODE_MAN_SIZE * NODES_TO_STORE)))
+			return XDP_PASS;
+
+		Reevaluate the data_end, data pointers and do bound checks again after the adjustament
+		data = (void *)(long)ctx->data;
+		data_end = (void *)(long)ctx->data_end;
+
+		eth = data;
+
+		if (eth + 1 > data_end)
+			return XDP_PASS;
+*/
+		struct ptp_data *ptp = (void*) eth + sizeof(*eth);
 
 		if (ptp + 1 > data_end)
 			return XDP_PASS;
@@ -54,16 +71,13 @@ int profiling_protocol(struct xdp_md *ctx) {
 
 		fpp_man->fpp_prefix = bpf_htonl(0xf99fef15);
 		fpp_man->node_offset = bpf_htons(0x0001);
-		/*Since there is no IP total length, a dummy number is stored*/
 		fpp_man->packet_size = bpf_htons(0x0022);
 		struct node_management *node_man = (void*) fpp_man + sizeof(*fpp_man);
 
 		if (node_man + 1 > data_end)
 			return XDP_PASS;
 		
-		/*Tested with a string because the MAC ADDRESS was recognized as part of the ptp header*/
-		__builtin_memcpy(node_man->node_id, "AAAAAAA", 7);
-		//strcpy(node_man->node_id, "AAAAAAA");
+		strcpy(node_man->node_id, "AAAAAAA");
 		node_man->timestamp_ingress = bpf_ktime_get_ns();
 		node_man->timestamp_egress = 0x0000000000000000;
 	
